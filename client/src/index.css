@@ -1,0 +1,25 @@
+.pin {
+  padding: 5px;
+  background: #fc6963;
+  border: 0;
+  border-radius: 5px;
+}
+.pin a {
+  color: rgb(255, 255, 255);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.pop {
+  margin: 0;
+  padding: 0 !important;
+}
+
+.menu {
+  position: absolute !important;
+  top: 20px;
+  left: 20px;
+  z-index: 2;
+}
+
+

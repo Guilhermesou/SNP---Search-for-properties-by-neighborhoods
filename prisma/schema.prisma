@@ -1,0 +1,56 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model property {
+  id         String      @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  value      Float    @db.Double
+  active     Boolean @db.Bool @default(true)
+  type       String @default("Casa")
+  url        String @db.String
+  source      String @db.String 
+  district   District @relation(fields: [districtId], references: [id])
+  districtId String @db.ObjectId     
+}
+
+model District {
+  id            String        @id @default(auto()) @map("_id") @db.ObjectId
+  name          String     @db.String
+  updatedAt  DateTime @updatedAt
+  average_value Float      @db.Double
+  property      property[]
+  location      Json       @db.Json
+}
+
+model companies {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  name String @db.String
+  active Boolean @db.Bool @default(true) 
+  source_site String @db.String
+  updatedAt  DateTime @updatedAt
+}
+
+model group {
+  id     String     @id @default(auto()) @map("_id") @db.ObjectId
+  nome    String?
+  user   User    @relation(fields: [userId], references: [id])
+  userId String @db.ObjectId @unique
+}
+
+model User {
+  id      String      @id @default(auto()) @map("_id") @db.ObjectId
+  email   String   @unique
+  name    String?
+  password String
+  group group?
+}
