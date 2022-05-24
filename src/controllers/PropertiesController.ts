@@ -1,111 +1,110 @@
-import { PrismaClient } from "@prisma/client";
-import axios from "axios";
-import { load } from "cheerio";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { Request, Response } from "express";
+import { IpcNetConnectOpts } from "net";
+import Scrapper from "../scrapper";
+import sites from "../sites";
+import NeihborhoodsController from "./NeihborhoodsController";
+
 const prisma = new PrismaClient();
 
-function checkIfAlreadyHaveTextInArray(array: [], text: never) {
-    return array.includes(text);
-  }
-  
-  function checkIfTagTextIsvalid(text: any) {
-    if (
-      typeof(text) === "number" ||
-      (text !== null &&
-      text !== "" &&
-      text.includes("\n") === false &&
-      text.length < 200)
-    ) {
-      return true;
-    }
-    return false;
-  }
-  
-  function checkIfTagIsMoneyAndReturnFloatNumber(text = "") {
-    if (text.includes("R$") === true){
-      const moneyValue = text.replace(/[^0-9]/g,'');
-      return parseFloat(moneyValue);
-    }
-    return text;
-  }
-  
-  async function genericSearchProperty() {
-    const data = {
-      propertyTag: ".listar_destaques",
-      propertyNameTags: [
-        "h2",
-        "h3",
-        "p > span",
-        "div",
-        "h1 > strong",
-        "div > p",
-        "p",
-        "dt",
-        "dd",
-        ".detalhe",
-        ".detalhe2",
-        "div > strong"
-      ],
-      propertyPaginationTags: [""],
-      websiteUrl:
-        "https://www.amazoniaimoveis.com.br/imoveis/imoveis.php",
-    };
-  
-    const properties: any[][] = [];
-    let next = true;
-    if (next === true) {
-      await axios(data.websiteUrl).then((pageContent: { data: any; }) => {
-        const $ = load(pageContent.data);
-  
-        $(data.propertyTag, pageContent.data).each(function () {
-          const prevData: [] = [];
-          
-          data.propertyNameTags.map((tag) => {
-            const textoDaTag = $(this).find(tag).last().text();
-            const hrefAttr = $(this).find("a").first().attr("href");
-            const title = $(this).find("a").first().attr("title");
-  
-            if (
-              checkIfTagTextIsvalid(hrefAttr) &&
-              checkIfAlreadyHaveTextInArray(prevData, hrefAttr) === false
-            ) {            
-              prevData.push(hrefAttr);
-              prevData.push(title);
-            }
-            const value = checkIfTagIsMoneyAndReturnFloatNumber(textoDaTag);
-            console.log("Valor: " + value + "\nTipo: " + typeof(value))
-            if (
-              checkIfTagTextIsvalid(value) &&
-              checkIfAlreadyHaveTextInArray(prevData, value) === false
-            ) {
-              prevData.push(value);
-            }
-          });
-  
-          /*if (prevData.length !== 0) {
-            
-          }*/
-          properties.push(prevData);
-        });
-        next = false;
-      });
-    }
-    return properties;
-  }
+interface IWebsiteData {
+  id: string;
+  nome: string;
+  url_base: string;
+  url_imoveis: string;
+  district: string;
+  state: string;
+  tags: {
+    property_tags: string[];
+    card_body: string;
+    neighborhood_tag: string;
+    price_tag: string;
+    property_url_tag: string;
+  };
+}
+
+type IPropertyData = {
+  district: string;
+  price: number;
+  url: string;
+};
 
 export default class PropertiesController {
-    
-    static async insertProperty(req: Request, res: Response) {
-        const data = req.body;
-        await prisma.property.createMany({
-            data: data,
-            
-        }
-        ).catch((error: Error) => {
-            res.status(500).send({error});
-        }).finally(async () => {
-            await prisma.$disconnect();
-        });
-        res.status(201).send({message: 'Dados inseridos com sucesso!'})
+  static async getAllProperties(req: Request, res: Response) {
+    try {
+      const allProperties = await prisma.property.findMany();
+      res.status(200).json(allProperties);
+    } catch (error) {
+      res.status(400).send(error);
     }
+  }
+
+  static async checkIfPropertyAlredyExists(url: string) {
+    try {
+      const response = await prisma.property.findFirst({
+        where: {
+          url: url,
+        },
+      });
+      if (response !== null) {
+        return true;
+      }
+      return false;
+    } catch (error) {
+      return error;
+    }
+  }
+
+  static async searchPropertiesInWebsites() {
+    try {
+      const response = await Promise.all(sites.map((item) => Scrapper(item)));
+      
+      return response.flat();
+    } catch (error) {
+      return error;
+    }
+  }
+
+  static async insertProperty() {
+    try {
+      const websitesContent =
+      await this.searchPropertiesInWebsites() as IPropertyData[];
+
+      websitesContent.map(async (property: IPropertyData) => {
+        const neighborhood_id = await NeihborhoodsController.getDistrictByName(
+          property.district
+        );
+        const result = await this.checkIfPropertyAlredyExists(property.url);
+
+        if (result !== true && property.price !== 0 && neighborhood_id) {
+          let propertyDataWithDistrictId: Prisma.propertyCreateInput = {
+            district: {
+              connect: { id: neighborhood_id?.id },
+            },
+            price: property.price,
+            url: property.url,
+          };
+
+          await prisma.property.create({
+            data: propertyDataWithDistrictId,
+          });
+        }
+      });
+
+      await prisma.$disconnect();
+      return { message: "Property inserted!" };
+    } catch (error) {
+      return error;
+    }
+  }
+
+  static async executePropertySearch(req: Request, res: Response) {
+    try {
+      const searchResponse = await PropertiesController.insertProperty();
+      res.json(searchResponse);
+    } catch (error) {
+      console.log(error);
+      res.status(400).json({ message: "An error has ocurred" });
+    }
+  }
 }

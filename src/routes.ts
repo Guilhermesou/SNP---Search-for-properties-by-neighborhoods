@@ -4,9 +4,13 @@ const routes = Router()
 
 
 import NeihborhoodsController from './controllers/NeihborhoodsController';
+import PropertiesController from './controllers/PropertiesController';
 
 routes.get("/bairros", NeihborhoodsController.getNeihborhoods);
 routes.get("/bairros/:id", NeihborhoodsController.getOneNeihborhood);
+routes.get("/bairros/nome/:name", NeihborhoodsController.getNeihborhoodByName);
+routes.get("/properties", PropertiesController.getAllProperties);
+routes.put("/properties", PropertiesController.executePropertySearch);
 
 routes.use((req, res, next) => {
   res.status(404);

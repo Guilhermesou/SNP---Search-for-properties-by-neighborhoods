@@ -125,10 +125,12 @@ export default function App() {
   
   const [neighbor, setNeighbor] = useState<Place[]>([]);
   const [loading, setLoading] = useState(true);
+
   function getData() {
     axios
       .get("http://localhost:4000/bairros")
       .then((data) => {
+        
         setNeighbor(data.data.payload);
         setLoading(false);
       })
@@ -157,11 +159,13 @@ export default function App() {
         className="map"
       >
         {neighbor.map((item) => (
+
           <>
             <Marker
               className="marker"
-              latitude={parseFloat(item.location.latitude)}
               longitude={parseFloat(item.location.longitude)}
+              latitude={parseFloat(item.location.latitude)}
+              
               offsetLeft={-20}
               offsetTop={-10}
             >
